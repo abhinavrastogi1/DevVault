@@ -1,16 +1,16 @@
-import apiError from "../utils/apiError.js";
-export const errorHandler = (err, req, res, next) => {
+import apiError from "../Utils/apiError.js";
+
+export function errorHandler(err, req, res, next) {
   if (err instanceof apiError) {
-    return res.status(err.status).json({
-      status: err.status,
+    res.status(err.status).json({
       message: err.message,
-      stack: err.stack,
       errors: err.errors,
+      success: err.success,
+      data: err.data,
     });
   } else {
-    res.status(500).json({
-      message: "Unexpected Error",
-      success: "false",
-    });
+    res
+      .status(500)
+      .json({ message: "unexpected error occur", success: "false" });
   }
-};
+}
