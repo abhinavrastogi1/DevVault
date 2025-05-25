@@ -1,3 +1,4 @@
+import { pool } from "../DB/index.js";
 import apiError from "../Utils/apiError.js";
 import apiResponse from "../Utils/apiResponse.js";
 import asyncHandler from "../Utils/asyncHandler.js";
@@ -116,31 +117,75 @@ async function aiResponse(
 
 const createSnippet = asyncHandler(async (req, res) => {
   const { title, snippet, userQuestion, tasks, notes, language } = req?.body;
-  // if (!title || (userQuestion == "" && tasks.length === 0) || !language) {
-  //   throw new apiError(
-  //     400,
-  //     "Please provide all the required fields: title, tasks, language."
-  //   );
-  // }
-  // if (snippet.length > 1000) {
-  //   throw new apiError(
-  //     400,
-  //     "Snippet is too long. Please limit it to 1000 characters."
-  //   );
-  // }
+  const { user_id } = req?.user;
+  if (!user_id) {
+    throw new apiError(400, "user_id is required");
+  }
+  const user = await pool.query("select user_id from users WHERE user_id=$1", [
+    user_id,
+  ]);
+  if (!user.rows[0]?.user_id) {
+    throw new apiError(401, "Unauthorized Access");
+  }
+  if (!title || (userQuestion == "" && tasks.length === 0) || !language) {
+    throw new apiError(
+      400,
+      "Please provide all the required fields: title, tasks, language."
+    );
+  }
+  if (snippet.length > 1000) {
+    throw new apiError(
+      400,
+      "Snippet is too long. Please limit it to 1000 characters."
+    );
+  }
   const rawResponse = await aiResponse(tasks, snippet, userQuestion, language);
-  let response = undefined;
+  let response;
   try {
     response = JSON.parse(rawResponse.choices[0].message.content);
   } catch (error) {
-    throw new apiError(400,"Error while parsing Json response ");
+    throw new apiError(400, "Error while parsing Json response ");
   }
-
-  
-  
+ const {generatedCode,completedTasks,remainingTasks,userQueryResponse,programmingLanguage,developerNotes}=response
+  const createSnippet = await pool.query(
+    "INSERT INTO snippets (snippet_code,user_id,snippet_title,language ) VALUES($1,$2,$3,$4) RETURNING snippet_code,user_id,snippet_title ,snippet_id;",
+    [generatedCode, user_id, title, programmingLanguage]
+  );
+  if (!createSnippet.rows[0].snippet_id) {
+    throw new apiError(500, "something went wrong while creating snippet");
+  }
+  const snippet_id = createSnippet.rows[0].snippet_id;
+  const alltasks = [...completedTasks, ...remainingTasks];
+  if (alltasks.length > 0) {
+    for (const task of alltasks) {
+      if (!task.task_id) {
+        const { taskDescription, completed, explanation } = task;
+        await pool.query(
+          "INSERT INTO tasks (task_description, is_completed, explanation, snippet_id) VALUES ($1, $2, $3, $4);",
+          [taskDescription, completed, explanation, snippet_id]
+        );
+      }
+    }
+    
+  }
+  if (developerNotes != "") {
+    await pool.query(
+      "INSERT INTO notes (note_description,snippet_id)VALUES($1,$2) RETURNING note_id;",
+      [developerNotes, snippet_id]
+    );
+  }
+  if (userQueryResponse != "" && userQuestion) {
+    const userquestion = await pool.query(
+      "INSERT INTO userquestions (ai_response,userquestion,snippet_id)VALUES($1,$2,$3) RETURNING question_id;",
+      [userQueryResponse, userQuestion, snippet_id]
+    );
+    if (!userquestion.rows[0].question_id) {
+      throw new apiError(500, "something went wrong while saving solution");
+    }
+  }
   res
     .status(200)
-    .json(new apiResponse(200, response, "Snippet Successfully Created "));
+    .json(new apiResponse(200, {...response,snippet_id}, "Snippet Successfully Created "));
 });
 
 export { createSnippet };
