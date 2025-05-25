@@ -5,7 +5,12 @@ import OpenAi from "openai";
 const openAi = new OpenAi({
   apiKey: process.env.OPEN_AI_API_KEY,
 });
- async function  aiResponse(tasks=[],snippet="",userQuestion="",language="javascript") {
+async function aiResponse(
+  tasks = [],
+  snippet = "",
+  userQuestion = "",
+  language = "javascript"
+) {
   const prompt = `
   You are a helpful assistant. You will be given a list of tasks. For each task:
   {
@@ -17,14 +22,39 @@ const openAi = new OpenAi({
       "4. HOWEVER, still respond to 'userQuestions' even if all tasks are completed.",
       "5. For each task with 'completed: false', if it can be done with code and a short explanation, set 'completed: true'.",
       "6. Write all code for completed tasks in the 'code' field as a single multi-line string. Format it like Prettier: tabWidth 2, semi, single quotes, trailing commas.",
-      "7. For each completed task, add a short explanation in the 'response' object: { task: '...', explanation: '...' }",
+      "7. For each completed task, add a short explanation in completedTasks: [{
+      "taskId": "...taskId..."",
+      "taskDescription": "...task name...",
+      "completed": true,
+      "explanation": "... detailed explanation of what the user asked for and what the code does..."
+    }
+  ],
       "8. If a task cannot be completed with code or a simple explanation, leave it 'completed: false'.",
       "9. If the user provided code, use it to assist or fix the relevant task.",
       "10. Always respond to the 'userQuestions' field if present.",
-      "11. Output MUST follow this structure: { tasks: [...], code: '...', response: {...}, userQuestions: '...', notes: '...', language: '...' }",
+    "11. Output MUST follow this structure strictly: { generatedCode: '...', completedTasks: [{..},{..}], remainingTasks: [{..},{..}], userQueryResponse: '...', developerNotes: '...', programmingLanguage: '...' }",
       "12. If there are no tasks, return tasks as an empty array. Leave code and response empty.",
       "13. Mention the language used for the code.",
       "14. if questions are asked, answer them in the userQuestion field. even if all tasks are completed.",
+       "15. Separate each task's code with a comment header in this format: // Task 1 code, // Task 2 code, etc.",
+       "if user ask for code you should provide him code in the generatedCode field and explaination in userQueryResponse
+
+    ]
+       "instructionForCodeGeneration":[
+    "1. Only complete tasks where 'completed' is false.",
+    "2. DO NOT leave placeholder or stub functions.",
+    "3. DO NOT return pseudocode or just function signatures.",
+    "4. All code must be fully working, production-quality, and safe.",
+    "5. Each task MUST include the complete implementation inside the 'generatedCode' block.",
+    "6. The code must be complete, not partially implemented or empty.",
+    "7. Include business logic, input validation, error handling, security practices (e.g., hashing passwords, checking token validity, sanitizing inputs, etc.).",
+    "8. Use appropriate libraries and tools that are commonly used in real-world applications (e.g., bcrypt, JWT, etc.).",
+    "9. Explain what the code does briefly in the 'explanation' field of each completed task.",
+    "10. Format code with Prettier-style: tabWidth 2, use semicolons, single quotes, trailing commas.",
+    "11. Follow RESTful practices if applicable.",
+    "12. Make the code work with real data (assume database if needed).",
+    "13. No comments like '// do this later' or '// logic here'.",
+    "14. The output MUST be fully functional code, not mockups.",
     ]
   }
   ,
@@ -36,23 +66,36 @@ const openAi = new OpenAi({
   }
   Return the result in the following format:
   {
-    "tasks": [ ...updated tasks... ],
-    "code": "...code string if any task involved coding..." code for every task in the same code key but formatted,
-    "response": {
-     { "task": "...task name...",
-      "explanation": "...simple explanation of what the code does..."},
-       { "task": "...task name...",
-      "explanation": "...simple explanation of what the code does..."}
+  generatedCode:  "...code string if any task involved coding..." code for every task in the same code key but formatted",
+  completedTasks: [
+    {
+      "task_id": "provided task_id",
+      "taskDescription": "...task name...",
+      "completed": true,
+      "explanation": "... detailed explanation of what the user asked for and what the code does..."
+    }, {
+      "task_id": "provided task_id",
+      "taskDescription": "...task name...",
+      "completed": true,
+      "explanation": "... detailed explanation of what the user asked for and what the code does..."
     }
-    "userQuestion": "...response to user questions if any...",
-    "notes": "You can add any additional notes or comments here.necessary, if user ask for notes and the notes ",
-    "language": "language used for the code, e.g., 'javascript', 'python', etc."
-  }
+  ],
+  remainingTasks: [
+    {
+     "task_id": "...same as provided task_id ",
+      "taskDescription": "...task name...",
+      "completed": false
+    }
+  ],
+  userQueryResponse: "...response to user questions if any...",
+  developerNotes: "You can add any additional notes or comments here.necessary, if user ask for notes and the notes ",
+  programmingLanguage: "language used for the code, e.g., 'javascript', 'python', etc."
+}
   }
   
   Only complete the tasks that are clearly achievable with code or explanation. Leave the rest as incomplete (false).
   `;
-  console.log(tasks)
+  try {
     const rawResponse = await openAi.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -63,24 +106,41 @@ const openAi = new OpenAi({
         },
         { role: "user", content: prompt },
       ],
+      temperature: 0.2,
     });
     return rawResponse;
+  } catch (error) {
+    throw new apiError(500, "Error generating AI response: " + error.message);
+  }
 }
 
 const createSnippet = asyncHandler(async (req, res) => {
   const { title, snippet, userQuestion, tasks, notes, language } = req?.body;
-  if (!title || (userQuestion == "" && tasks.length === 0) || !language) {
-    throw new apiError(400, "Please provide all the required fields: title, tasks, language.");
+  // if (!title || (userQuestion == "" && tasks.length === 0) || !language) {
+  //   throw new apiError(
+  //     400,
+  //     "Please provide all the required fields: title, tasks, language."
+  //   );
+  // }
+  // if (snippet.length > 1000) {
+  //   throw new apiError(
+  //     400,
+  //     "Snippet is too long. Please limit it to 1000 characters."
+  //   );
+  // }
+  const rawResponse = await aiResponse(tasks, snippet, userQuestion, language);
+  let response = undefined;
+  try {
+    response = JSON.parse(rawResponse.choices[0].message.content);
+  } catch (error) {
+    throw new apiError(400,"Error while parsing Json response ");
   }
-  if (snippet.length > 1000) {
-  throw new apiError(400, "Snippet is too long. Please limit it to 1000 characters.");
-  }
-const  rawResponse= await aiResponse(tasks,snippet,userQuestion,language) 
-  console.log("Raw response from OpenAI:", rawResponse);
-  const response = JSON.parse(rawResponse.choices[0].message.content);
-  console.log("Response from OpenAI:", response.code);
-  res.status(200).json(new apiResponse(200,response , "Snippet Successfully Created "));
 
+  
+  
+  res
+    .status(200)
+    .json(new apiResponse(200, response, "Snippet Successfully Created "));
 });
 
 export { createSnippet };
