@@ -117,7 +117,7 @@ export default function SnippetEditor({ snippet, onUpdate }) {
             </select>
           </div>
 
-          <div className="h-64 border border-gray-800 rounded-md overflow-hidden">
+          <div className="h-[50vh] border border-gray-800 rounded-md overflow-hidden">
             <MonacoEditor
               height="100%"
               language={language}
