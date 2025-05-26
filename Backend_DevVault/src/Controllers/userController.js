@@ -27,12 +27,13 @@ export const options = {
   maxAge: 24 * 60 * 60 * 1000,
 };
 const signUp = asyncHandler(async (req, res) => {
-  const { firstName, secondName, email, password } = req?.body;
-  if (!firstName || !secondName || !email || !password) {
+  const { name, email, password } = req?.body;
+
+  if (!name || !email || !password) {
     throw new apiError(400, "Please provide all the fields");
   }
   const user_email = email.trim();
-  const user_name = firstName.trim() + " " + secondName.trim();
+  const user_name = name.trim();
   const hash_password = await bcrypt.hash(password, 10);
   // Check if user already exists
   let user = await pool.query("SELECT * FROM users WHERE user_email = $1;", [
@@ -113,7 +114,7 @@ const signIn = asyncHandler(async (req, res) => {
 });
 
 const signOut = asyncHandler(async (req, res) => {
-const {user_id} = req.user;
+  const { user_id } = req.user;
   if (!user_id) {
     throw new apiError(400, "all fields are required ");
   }
@@ -125,15 +126,40 @@ const {user_id} = req.user;
     throw new apiError(400, "User not found");
   }
   const removeRefreshToken = await pool.query(
-  "UPDATE users SET refresh_token=NULL WHERE user_id=$1 RETURNING user_id,refresh_token;",
-    [user_id] 
+    "UPDATE users SET refresh_token=NULL WHERE user_id=$1 RETURNING user_id,refresh_token;",
+    [user_id]
   );
-  if (!removeRefreshToken?.rows[0] || removeRefreshToken?.rows[0]?.refresh_token !== null) {
+  if (
+    !removeRefreshToken?.rows[0] ||
+    removeRefreshToken?.rows[0]?.refresh_token !== null
+  ) {
     throw new apiError(400, "User not signed out");
   }
   res
-    .clearCookie("access_token","",options)
-    .clearCookie("refresh_token","",options)
+    .clearCookie("access_token", "", options)
+    .clearCookie("refresh_token", "", options)
     .json(new apiResponse(200, {}, "User Successfully signed out"));
-})
-export { signUp, signIn ,signOut};
+});
+const verifyUser = asyncHandler(async (req, res) => {
+  const { user_id, access_token } = req.user;
+  if (!user_id) {
+    throw new apiError(400, "User not found");
+  }
+  const user = await pool.query(
+    "SELECT user_id, user_name, user_email FROM users WHERE user_id = $1;",
+    [user_id]
+  );
+  if (!user.rows[0]) {
+    throw new apiError(400, "User not found");
+  }
+  if (access_token) {
+    res
+      .status(200)
+      .json(new apiResponse(200, user.rows[0], "User verified successfully"))
+      .cookie("access_token", access_token, options);
+  }
+  res
+    .status(200)
+    .json(new apiResponse(200, user.rows[0], "User verified successfully"));
+});
+export { signUp, signIn, signOut ,verifyUser};
