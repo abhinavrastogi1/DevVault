@@ -439,7 +439,7 @@ const getAllSnippetsController = asyncHandler(async (req, res) => {
     throw new apiError(400, "user_id is required");
   }
   const snippets = await pool.query(
-    "SELECT snippet_id,snippet_code,snippet_title,language FROM snippets WHERE user_id=$1",
+    "SELECT snippet_id,snippet_title ,updated_at  FROM snippets WHERE user_id=$1",
     [user_id]
   );
   if (!snippets.rows[0]) {

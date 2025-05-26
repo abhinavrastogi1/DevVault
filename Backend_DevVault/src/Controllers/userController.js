@@ -28,7 +28,6 @@ export const options = {
 };
 const signUp = asyncHandler(async (req, res) => {
   const { name, email, password } = req?.body;
-
   if (!name || !email || !password) {
     throw new apiError(400, "Please provide all the fields");
   }
@@ -162,4 +161,36 @@ const verifyUser = asyncHandler(async (req, res) => {
     .status(200)
     .json(new apiResponse(200, user.rows[0], "User verified successfully"));
 });
+// const saveSnippet = asyncHandler(async (req, res) => { 
+//   const { user_id } = req.user;
+//   const { title, code, language,notes,tasks } = req.body;
+
+//   if (!user_id || !title || !language) {
+//     throw new apiError(400, "All fields are required");
+//   }
+
+//   const snippet = await pool.query(
+//     "INSERT INTO snippets (user_id, title, code, language) VALUES ($1, $2, $3, $4) RETURNING *;",
+//     [user_id, title.trim(), code, language.trim()]
+//   );
+//    if(notes && notes.trim()) {
+//     await pool.query(
+//       "INSERT INTO snippet_notes (snippet_id, notes) VALUES ($1, $2);",
+//       [snippet.rows[0].snippet_id, notes.trim()]
+//     );
+//   }
+//   if(tasks && tasks.length > 0) {
+//     const taskQueries = tasks.map(task => 
+//       pool.query(
+//         "INSERT INTO snippet_tasks (snippet_id, task) VALUES ($1, $2);",
+//         [snippet.rows[0].snippet_id, task.trim()]
+//       )
+//     );
+//     await Promise.all(taskQueries);
+//   }
+//   if (!snippet.rows[0]) {
+//     throw new apiError(500, "Failed to save snippet");
+//   }
+//   res.status(201).json(new apiResponse(201, snippet.rows[0], "Snippet saved successfully"));
+//  })
 export { signUp, signIn, signOut ,verifyUser};

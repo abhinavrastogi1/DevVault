@@ -3,7 +3,7 @@ import apiError from "../Utils/apiError.js";
 import asyncHandler from "../Utils/asyncHandler.js";
 import jwt from "jsonwebtoken";
 const verifyJwt = asyncHandler(async (req, res, next) => {
-  try {
+  
     const { access_token, refresh_token } = req.cookies;
     if (!access_token || !refresh_token) {
       throw new apiError(401, "Unauthorized: No access token provided");
@@ -62,8 +62,5 @@ const verifyJwt = asyncHandler(async (req, res, next) => {
       access_token: newAccessToken,
     };
     next();
-  } catch (error) {
-    throw new apiError(401, "Unauthorized: Invalid token");
-  }
 });
 export default verifyJwt;

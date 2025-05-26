@@ -1,19 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import { format } from "date-fns";
 import { LogOut, Code, CheckSquare, MessageSquare, FileText, Plus } from "lucide-react";
 import { cn } from "../lib/utils.js";
+import { useDispatch, useSelector } from "react-redux";
+import { signOut } from "../Store/Authantication/authenticationSlice.js";
 
 export default function Sidebar({
-  snippets,
+  
   onSnippetSelect,
   onSnippetCreate,
-  onLogout,
   currentSnippetId,
 }) {
   const [activeTab, setActiveTab] = useState("snippets");
-
+  const{isLoading}= useSelector((state) => state.authenticationSlice)
+  const snippets= useSelector((state) => state.snippetSlice.snippets)
+  const dispatch=useDispatch()
+  const onLogout = () => {
+    // Handle logout logic here, e.g., clear user session, redirect to login page, etc.
+    dispatch(signOut())
+    console.log("User logged out");
+  };
+  
+  function updatedAtData(date){
+    const utcDate = new Date(date); // UTC date
+const indianStandardTime = new Date(utcDate.getTime() + (5 * 60 + 30) * 60000); // Adding 5 hours 30 minutes
+// Format the date in 'MMMM d, yyyy' format
+const options = { year: 'numeric', month: 'long', day: 'numeric' };
+const formattedDate = indianStandardTime.toLocaleDateString("en-IN", options);
+return formattedDate;
+  }
   return (
     <div className="w-80 border-r border-gray-800 flex flex-col h-full bg-gray-950">
       {/* Header */}
@@ -41,7 +58,7 @@ export default function Sidebar({
         <button
           className={cn(
             "flex items-center w-full p-3 rounded-md transition-colors",
-            activeTab === "snippets" ? "bg-gray-900 text-white" : "text-gray-400 hover:bg-gray-900 hover:text-white"
+            activeTab === "snippets" ? "bg-gray-900 text-white" : "text-gray-400 hover:bg-gray-900 hover:text-white "
           )}
           onClick={() => setActiveTab("snippets")}
         >
@@ -97,18 +114,18 @@ export default function Sidebar({
         </div>
 
         <div className="space-y-1">
-          {snippets.map((snippet) => (
+          {snippets?.map((snippet) => (
             <button
-              key={snippet.id}
+              key={snippet.snippet_id}
               className={cn(
                 "w-full text-left p-2 rounded-md transition-colors",
-                snippet.id === currentSnippetId ? "bg-gray-800 text-white" : "hover:bg-gray-900 text-gray-300"
+                snippet.snippet_id === currentSnippetId ? "bg-gray-800 text-white" : "hover:bg-gray-900 text-gray-300"
               )}
               onClick={() => onSnippetSelect(snippet)}
             >
-              <div className="font-medium truncate">{snippet.title}</div>
+              <div className="font-medium truncate">{snippet.snippet_title}</div>
               <div className="text-xs text-gray-500">
-                {format(new Date(snippet.createdAt), "MMMM d, yyyy")}
+               Last Updated: {updatedAtData(snippet.updated_at)}
               </div>
             </button>
           ))}
@@ -119,10 +136,13 @@ export default function Sidebar({
       <div className="p-4 border-t border-gray-800">
         <button
           onClick={onLogout}
-          className="flex items-center w-full p-2 rounded-md text-gray-400 hover:bg-gray-900 hover:text-white transition-colors"
+          className="flex items-center w-full p-2 rounded-md text-gray-400 hover:bg-gray-900 hover:text-white transition-colors cursor-pointer "
+          type="button"
+          disabled={isLoading}
+
         >
           <LogOut className="mr-3 h-5 w-5" />
-          Logout
+          {isLoading ? "Logging out..." : "Logout"}
         </button>
       </div>
     </div>

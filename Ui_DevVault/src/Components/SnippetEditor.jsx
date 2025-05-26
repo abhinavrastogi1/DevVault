@@ -90,7 +90,6 @@ export default function SnippetEditor({ snippet, onUpdate }) {
           <TaskSection tasks={tasks} onTaskToggle={handleTaskToggle} onTaskAdd={handleTaskAdd} onTaskDelete={handleTaskDelete} />
           <NotesSection notes={notes} onNotesChange={handleNotesChange} />
         </div>
-
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold">Code Snippet</h2>
@@ -117,7 +116,7 @@ export default function SnippetEditor({ snippet, onUpdate }) {
             </select>
           </div>
 
-          <div className="h-[50vh] border border-gray-800 rounded-md overflow-hidden">
+          <div className="h-[20vh] border border-gray-800 rounded-md overflow-hidden">
             <MonacoEditor
               height="100%"
               language={language}

@@ -1,14 +1,27 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useNavigate } from 'react-router-dom' // replace next/navigation with react-router-dom
 import Sidebar from './Sidebar.jsx'
 import SnippetEditor from './SnippetEditor.jsx'
+import { useDispatch, useSelector } from 'react-redux'
+import { getAllSnippets } from '../Store/SnippetSlices/snippetslice.js'
 
 export default function Dashboard() {
     const navigate = useNavigate() // useNavigate for routing in React
     const [snippets, setSnippets] = useState([])
     const [currentSnippet, setCurrentSnippet] = useState(null)
-
+    const{isAuthenticated,isLoading}= useSelector((state) => state.authenticationSlice)
+    const dispatch = useDispatch();
+    useEffect(() => {
+        // Check if user is authenticated
+        if (!isAuthenticated && !isLoading) {
+            navigate('/') // Redirect to home if not authenticated
+        }
+    }, [isAuthenticated, isLoading, navigate, dispatch])
     // Load snippets from localStorage on initial render
+    useEffect(() => {
+        dispatch(getAllSnippets())
+    },[])
+
     useEffect(() => {
         const savedSnippets = localStorage.getItem('snippets')
         if (savedSnippets) {

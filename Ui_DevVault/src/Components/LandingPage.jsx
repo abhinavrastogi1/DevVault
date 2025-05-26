@@ -1,25 +1,26 @@
 "use client"
-import React, { useEffect, useState } from "react"
+import React, { use, useEffect, useState } from "react"
 import { Button } from "./Ui/Button.jsx"
 import { Input } from "./Ui/Input.jsx"
 import { Label } from "./Ui/Label.jsx"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./Ui/Card.jsx"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./Ui/Tabs.jsx"
-import { useDispatch } from "react-redux"
-import { verifyUser,signIn,signUp } from "../Store/Authantication/authenticationSlice.js"
+import { useDispatch, useSelector } from "react-redux"
+import { signIn,signUp } from "../Store/Authantication/authenticationSlice.js"
+import { useNavigate } from "react-router-dom"
 const API_URL=import.meta.env.VITE_API_URL
 // Make sure to set the API_URL in your .env file
 export default function LandingPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const dispatch = useDispatch()
-  useEffect(()=>{
-    dispatch(verifyUser())
-    console.log("User verification dispatched")
-  },[])
-
+  const{isAuthenticated,isLoading}= useSelector((state) => state.authenticationSlice)
+  const dispatch = useDispatch();
+  const navigate=useNavigate();
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard")
+    }}, [isAuthenticated, navigate, dispatch])
+ 
   const handlesignin = async (e) => {
     e.preventDefault()
-    setIsLoading(true)
     const formData = e.target.elements
     const email = formData.email.value
     const password = formData.password.value
@@ -27,20 +28,10 @@ export default function LandingPage() {
      dispatch(signIn({ email, password }))
     } catch (error) {
       console.error("Error during sign in:", error)
-      setIsLoading(false)
     }
-    finally {
-      setIsLoading(false)
-    }
-    // Simulate authentication
-    setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
   }
-
   const handleSignup = async (e) => {
     e.preventDefault()
-    setIsLoading(true)
     const formData = e.target.elements
     const name = formData.name.value
     const email = formData.email.value
@@ -49,15 +40,9 @@ export default function LandingPage() {
        dispatch(signUp({ name, email, password }))
     } catch (error) {
       console.error("Error during sign up:", error)
-      setIsLoading(false)
-    }
-    finally {
-      setIsLoading(false)
     }
     // Simulate account creation
-    setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
+   
   }
 
   return (
