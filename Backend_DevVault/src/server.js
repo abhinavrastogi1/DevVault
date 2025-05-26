@@ -7,8 +7,8 @@ const port = process.env.PORT || 3000;
 const server = async () => {
   try {
     await connect_DB();
-    app.get("/", () => {
-      console.log("Hello from the server");
+    app.get("/", (req,res) => {
+      res.redirect(302,"https://clikn.in")
     });
     app.listen(port, "0.0.0.0", () => {
       console.log(`Server is running on port ${port}`);
@@ -25,7 +25,7 @@ const server = async () => {
         console.error("🔴 DB ping failed:", error.message);
       }
     },
-    5000
+    5*1000
   ); // every 1 minutes
 };
 // src/utils/dbPing.js

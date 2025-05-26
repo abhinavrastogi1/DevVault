@@ -442,9 +442,6 @@ const getAllSnippetsController = asyncHandler(async (req, res) => {
     "SELECT snippet_id,snippet_title ,updated_at  FROM snippets WHERE user_id=$1",
     [user_id]
   );
-  if (!snippets.rows[0]) {
-    throw new apiError(404, "No snippets found for this user");
-  }
   if (req.user.access_token) {
     res
       .status(200)
