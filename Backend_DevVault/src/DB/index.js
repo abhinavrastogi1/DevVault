@@ -5,7 +5,7 @@ export const pool = new Pool({
     rejectUnauthorized: false,
   },
 });
-export const connecct_DB = async () => {
+export const connect_DB = async () => {
   try {
     const client = await pool.connect();
     console.log("Connected to the database");

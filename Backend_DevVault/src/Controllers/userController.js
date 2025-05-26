@@ -76,7 +76,7 @@ const signIn = asyncHandler(async (req, res) => {
   const user_email = email.trim();
   const user = await pool.query(
     "SELECT user_id, user_name, user_email ,hash_password FROM users WHERE user_email = $1;",
-    [email]
+    [user_email]
   );
   if (!user.rows[0]) {
     throw new apiError(400, "User not found");

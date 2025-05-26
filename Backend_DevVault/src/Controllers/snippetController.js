@@ -221,7 +221,7 @@ async function updatesnippet(
   try {
     if (generatedCode) {
       const updatedSnippet = await pool.query(
-        "UPDATE snippets  SET snippet_code=$1,snippet_title=$2, language=$3 where snippet_id=$4 RETURNING snippet_code ,snippet_title",
+        "UPDATE snippets  SET snippet_code=$1,snippet_title=$2, language=$3 , updated_at = CURRENT_TIMESTAMP where snippet_id=$4 RETURNING snippet_code ,snippet_title",
         [generatedCode, title, programmingLanguage, snippetId]
       );
       if (!updatedSnippet.rows[0].snippet_code) {
@@ -249,7 +249,7 @@ async function updatesnippet(
           throw new apiError(500, "Task does not exist.");
         }
         await pool.query(
-          "UPDATE tasks SET task_description =$1, is_completed=$2, explanation=$3 WHERE task_id=$4",
+          "UPDATE tasks SET task_description =$1, is_completed=$2, explanation=$3, updated_at = CURRENT_TIMESTAMP WHERE task_id=$4",
           [taskDescription, completed, explanation, task_id]
         );
       }
@@ -263,7 +263,7 @@ async function updatesnippet(
     if (!notesExist.rows[0].note_id) {
       throw new apiError(500, " Note does not exist  ");
     }
-    await pool.query("UPDATE notes SET note_description=$1 WHERE note_id=$2", [
+    await pool.query("UPDATE notes SET note_description=$1 , updated_at = CURRENT_TIMESTAMP WHERE note_id=$2", [
       developerNotes,
       noteId,
     ]);
@@ -275,7 +275,7 @@ async function updatesnippet(
   }
 }
 // snippet controller manages both updating and creating of snippet
-const snippetController = asyncHandler(async (req, res) => {
+const snippetController = asyncHandler(async (req, res, next) => {
   const { title, snippet, userQuestion, tasks, language, snippetId, noteId } =
     req?.body;
   const { user_id } = req?.user;
@@ -341,17 +341,67 @@ const snippetController = asyncHandler(async (req, res) => {
       userQuestion
     );
   }
+
   res
     .status(200)
     .json(
-      new apiResponse(
-        200,
-        { ...response, snippet_id },
-        "Snippet Successfully Created "
-      )
+      new apiResponse(200, response, "snippet successfult created and updated")
     );
 });
 
-const getSnippetController = asyncHandler(async (req, res) => {});
+const getAllSnippetsController = asyncHandler(async (req, res) => {
+  const { user_id } = req?.user;
+  if (!user_id) {
+    throw new apiError(400, "user_id is required");
+  }
+  const snippets = await pool.query(
+    "SELECT snippet_id,snippet_code,snippet_title,language FROM snippets WHERE user_id=$1",
+    [user_id]
+  );
+  if (!snippets.rows[0]) {
+    throw new apiError(404, "No snippets found for this user");
+  }
+  res.status(200).json(new apiResponse(200, snippets.rows, "Snippets fetched"));
+});
 
-export { snippetController, getSnippetController };
+
+
+const getSnippetByIdController = asyncHandler(async (req, res) => {
+  const { snippetId } = req.query;
+  if (!snippetId) {
+    throw new apiError(400, "snippetId is required");
+  }
+  const { user_id } = req?.user;
+  if (!snippetId || !user_id) {
+    throw new apiError(400, "snippetId and user_id are required");
+  }
+  console.log("hell0")
+  const [snippetResponse, tasksResponse, notesResponse, QuestionResponse] = await Promise.all([
+    pool.query("SELECT snippet_id,snippet_code,created_at, updated_at,snippet_title,language FROM snippets WHERE snippet_id=$1 AND user_id=$2;", [snippetId, user_id]),
+    pool.query("SELECT task_id,task_description,is_completed,explanation FROM tasks WHERE snippet_id=$1;", [snippetId]),
+    pool.query("SELECT note_id,note_description  FROM notes WHERE snippet_id=$1;", [snippetId]),
+    pool.query("SELECT  userquestion ,ai_response FROM userquestions WHERE snippet_id=$1;", [snippetId]),
+  ]);
+
+  // Check if snippet exists, if not, throw error
+  if (!snippetResponse.rows[0].snippet_id) {
+    throw new apiError(500, "Something went wrong while fetching data");
+  }
+
+  // Construct the final response
+  const response = {
+    snippet: snippetResponse?.rows[0],
+    tasks: tasksResponse?.rows,
+    notes: notesResponse?.rows,
+    question: QuestionResponse?.rows,
+  };
+
+  console.log("Response:", response);
+  // Send the response
+  res.status(200).json(new apiResponse(200, response, "Snippet fetched"));
+});
+export {
+  snippetController,
+  getSnippetByIdController,
+  getAllSnippetsController,
+};

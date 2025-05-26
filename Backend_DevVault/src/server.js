@@ -1,11 +1,11 @@
 import {app}from './app.js'
 import dotenv from 'dotenv'     
-import {connecct_DB}  from './DB/index.js'
+import {connect_DB}  from './DB/index.js'
 dotenv.config();
 const port = process.env.PORT || 3000;
 const server = async()=>{
     try {
-        await connecct_DB();
+        await connect_DB();
         app.get("/",()=>{
             console.log("Hello from the server");
         })
