@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { createSnippet } from "../Controllers/snippetController.js";
+import { snippetController } from "../Controllers/snippetController.js";
 import verifyJwt from "../Middleware/verifyJwtMiddleware.js";
 
 const snippetRouter=new Router();
-snippetRouter.post("/createsnippet",verifyJwt,createSnippet)
+snippetRouter.post("/createsnippet",verifyJwt,snippetController)
 export default snippetRouter

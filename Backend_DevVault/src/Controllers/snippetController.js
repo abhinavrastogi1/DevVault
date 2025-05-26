@@ -6,6 +6,7 @@ import OpenAi from "openai";
 const openAi = new OpenAi({
   apiKey: process.env.OPEN_AI_API_KEY,
 });
+//fetch response from ai
 async function aiResponse(
   tasks = [],
   snippet = "",
@@ -114,18 +115,172 @@ async function aiResponse(
     throw new apiError(500, "Error generating AI response: " + error.message);
   }
 }
+//create new task document
+async function createTask(taskDescription, completed, explanation, snippetId) {
+  try {
+    await pool.query(
+      "INSERT INTO tasks (task_description, is_completed, explanation, snippet_id) VALUES ($1, $2, $3, $4);",
+      [taskDescription, completed, explanation, snippetId]
+    );
+  } catch (error) {
+    throw new apiError(500, "error:" + error);
+  }
+}
+// create new note document
+async function createNote(developerNotes, snippetId) {
+  try {
+    await pool.query(
+      "INSERT INTO notes (note_description,snippet_id)VALUES($1,$2) RETURNING note_id;",
+      [developerNotes, snippetId]
+    );
+  } catch (error) {
+    throw new apiError(500, "error:" + error);
+  }
+}
+//create new question document
+async function createQuestion(userQueryResponse, userQuestion, snippetId) {
+  try {
+    const userquestion = await pool.query(
+      "INSERT INTO userquestions (ai_response,userquestion,snippet_id)VALUES($1,$2,$3) RETURNING question_id;",
+      [userQueryResponse, userQuestion, snippetId]
+    );
+    if (!userquestion.rows[0].question_id) {
+      throw new apiError(500, "something went wrong while saving solution");
+    }
+  } catch (error) {
+    throw new apiError(500, "error:" + error);
+  }
+}
 
-const createSnippet = asyncHandler(async (req, res) => {
-  const { title, snippet, userQuestion, tasks, notes, language } = req?.body;
+//create new snippet
+async function createSnippet(
+  generatedCode,
+  completedTasks,
+  remainingTasks,
+  userQueryResponse,
+  programmingLanguage,
+  developerNotes,
+  title,
+  user_id,
+  userQuestion
+) {
+  const createSnippet = await pool.query(
+    "INSERT INTO snippets (snippet_code,user_id,snippet_title,language ) VALUES($1,$2,$3,$4) RETURNING snippet_code,user_id,snippet_title ,snippet_id;",
+    [generatedCode, user_id, title, programmingLanguage]
+  );
+  if (!createSnippet.rows[0].snippet_id) {
+    throw new apiError(500, "something went wrong while creating snippet");
+  }
+  const snippet_id = createSnippet.rows[0].snippet_id;
+  const alltasks = [...completedTasks, ...remainingTasks];
+  if (alltasks.length > 0) {
+    for (const task of alltasks) {
+      const { taskDescription, completed, explanation, task_id } = task;
+      if (!task_id) {
+        await createTask(taskDescription, completed, explanation, snippet_id);
+      }
+    }
+  }
+  if (developerNotes) {
+    await createNote(developerNotes, snippet_id);
+  }
+  if (userQueryResponse && userQuestion) {
+    await createQuestion(userQueryResponse, userQuestion, snippet_id);
+  }
+  return snippet_id;
+}
+//update the already created snippet
+async function updatesnippet(
+  snippetId,
+  userQueryResponse,
+  programmingLanguage,
+  title,
+  generatedCode,
+  completedTasks,
+  remainingTasks,
+  developerNotes,
+  noteId,
+  userQuestion,
+  user_id
+) {
+  try {
+    const snippetExist = await pool.query(
+      "SELECT snippet_id FROM snippets WHERE snippet_id=$1 and user_id=$2",
+      [snippetId, user_id]
+    );
+    if (!snippetExist.rows[0].snippet_id) {
+      throw new apiError(502, "snippet_id does not exist");
+    }
+  } catch (error) {
+    throw new apiError(
+      500,
+      "something went wrong while fetching snippet" + error
+    );
+  }
+
+  try {
+    if (generatedCode) {
+      const updatedSnippet = await pool.query(
+        "UPDATE snippets  SET snippet_code=$1,snippet_title=$2, language=$3 where snippet_id=$4 RETURNING snippet_code ,snippet_title",
+        [generatedCode, title, programmingLanguage, snippetId]
+      );
+      if (!updatedSnippet.rows[0].snippet_code) {
+        throw new apiError(500, "Something went wrong while updating snippet ");
+      }
+    }
+  } catch (error) {
+    throw new apiError(
+      500,
+      "something went wrong while updating snippet" + error
+    );
+  }
+  const alltasks = [...completedTasks, ...remainingTasks];
+  if (alltasks.length > 0) {
+    for (const task of alltasks) {
+      const { taskDescription, completed, explanation, task_id } = task;
+      if (!task_id) {
+        await createTask(taskDescription, completed, explanation, snippetId);
+      } else {
+        const taskExist = await pool.query(
+          "SELECT task_id FROM tasks WHERE task_id=$1",
+          [task_id]
+        );
+        if (!taskExist.rows[0].task_id) {
+          throw new apiError(500, "Task does not exist.");
+        }
+        await pool.query(
+          "UPDATE tasks SET task_description =$1, is_completed=$2, explanation=$3 WHERE task_id=$4",
+          [taskDescription, completed, explanation, task_id]
+        );
+      }
+    }
+  }
+  if (noteId) {
+    const notesExist = await pool.query(
+      "SELECT note_id FROM notes WHERE note_id=$1",
+      [noteId]
+    );
+    if (!notesExist.rows[0].note_id) {
+      throw new apiError(500, " Note does not exist  ");
+    }
+    await pool.query("UPDATE notes SET note_description=$1 WHERE note_id=$2", [
+      developerNotes,
+      noteId,
+    ]);
+  } else {
+    await createNote(developerNotes, snippetId);
+  }
+  if (userQueryResponse != "" && userQuestion) {
+    await createQuestion(userQueryResponse, userQuestion, snippetId);
+  }
+}
+// snippet controller manages both updating and creating of snippet
+const snippetController = asyncHandler(async (req, res) => {
+  const { title, snippet, userQuestion, tasks, language, snippetId, noteId } =
+    req?.body;
   const { user_id } = req?.user;
   if (!user_id) {
     throw new apiError(400, "user_id is required");
-  }
-  const user = await pool.query("select user_id from users WHERE user_id=$1", [
-    user_id,
-  ]);
-  if (!user.rows[0]?.user_id) {
-    throw new apiError(401, "Unauthorized Access");
   }
   if (!title || (userQuestion == "" && tasks.length === 0) || !language) {
     throw new apiError(
@@ -140,52 +295,63 @@ const createSnippet = asyncHandler(async (req, res) => {
     );
   }
   const rawResponse = await aiResponse(tasks, snippet, userQuestion, language);
+  if (!rawResponse?.choices?.[0]?.message?.content) {
+    throw new apiError(500, "AI did not return a valid response");
+  }
   let response;
   try {
     response = JSON.parse(rawResponse.choices[0].message.content);
   } catch (error) {
     throw new apiError(400, "Error while parsing Json response ");
   }
- const {generatedCode,completedTasks,remainingTasks,userQueryResponse,programmingLanguage,developerNotes}=response
-  const createSnippet = await pool.query(
-    "INSERT INTO snippets (snippet_code,user_id,snippet_title,language ) VALUES($1,$2,$3,$4) RETURNING snippet_code,user_id,snippet_title ,snippet_id;",
-    [generatedCode, user_id, title, programmingLanguage]
-  );
-  if (!createSnippet.rows[0].snippet_id) {
-    throw new apiError(500, "something went wrong while creating snippet");
-  }
-  const snippet_id = createSnippet.rows[0].snippet_id;
-  const alltasks = [...completedTasks, ...remainingTasks];
-  if (alltasks.length > 0) {
-    for (const task of alltasks) {
-      if (!task.task_id) {
-        const { taskDescription, completed, explanation } = task;
-        await pool.query(
-          "INSERT INTO tasks (task_description, is_completed, explanation, snippet_id) VALUES ($1, $2, $3, $4);",
-          [taskDescription, completed, explanation, snippet_id]
-        );
-      }
-    }
-    
-  }
-  if (developerNotes != "") {
-    await pool.query(
-      "INSERT INTO notes (note_description,snippet_id)VALUES($1,$2) RETURNING note_id;",
-      [developerNotes, snippet_id]
+  const {
+    generatedCode,
+    completedTasks,
+    remainingTasks,
+    userQueryResponse,
+    programmingLanguage,
+    developerNotes,
+  } = response;
+  let snippet_id = snippetId;
+  let note_id = noteId;
+  if (snippetId) {
+    await updatesnippet(
+      snippetId,
+      userQueryResponse,
+      programmingLanguage,
+      title,
+      generatedCode,
+      completedTasks,
+      remainingTasks,
+      developerNotes,
+      noteId,
+      userQuestion,
+      user_id
     );
-  }
-  if (userQueryResponse != "" && userQuestion) {
-    const userquestion = await pool.query(
-      "INSERT INTO userquestions (ai_response,userquestion,snippet_id)VALUES($1,$2,$3) RETURNING question_id;",
-      [userQueryResponse, userQuestion, snippet_id]
+  } else {
+    snippet_id = await createSnippet(
+      generatedCode,
+      completedTasks,
+      remainingTasks,
+      userQueryResponse,
+      programmingLanguage,
+      developerNotes,
+      title,
+      user_id,
+      userQuestion
     );
-    if (!userquestion.rows[0].question_id) {
-      throw new apiError(500, "something went wrong while saving solution");
-    }
   }
   res
     .status(200)
-    .json(new apiResponse(200, {...response,snippet_id}, "Snippet Successfully Created "));
+    .json(
+      new apiResponse(
+        200,
+        { ...response, snippet_id },
+        "Snippet Successfully Created "
+      )
+    );
 });
 
-export { createSnippet };
+const getSnippetController = asyncHandler(async (req, res) => {});
+
+export { snippetController, getSnippetController };
