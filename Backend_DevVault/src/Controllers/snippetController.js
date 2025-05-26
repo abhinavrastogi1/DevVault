@@ -3,6 +3,7 @@ import apiError from "../Utils/apiError.js";
 import apiResponse from "../Utils/apiResponse.js";
 import asyncHandler from "../Utils/asyncHandler.js";
 import OpenAi from "openai";
+import { options } from "./userController.js";
 const openAi = new OpenAi({
   apiKey: process.env.OPEN_AI_API_KEY,
 });
@@ -118,10 +119,11 @@ async function aiResponse(
 //create new task document
 async function createTask(taskDescription, completed, explanation, snippetId) {
   try {
-    await pool.query(
-      "INSERT INTO tasks (task_description, is_completed, explanation, snippet_id) VALUES ($1, $2, $3, $4);",
+    const taskRawData = await pool.query(
+      "INSERT INTO tasks (task_description, is_completed, explanation, snippet_id) VALUES ($1, $2, $3, $4) RETURNING task_id,task_description,is_completed,explanation;",
       [taskDescription, completed, explanation, snippetId]
     );
+    return taskRawData.rows[0];
   } catch (error) {
     throw new apiError(500, "error:" + error);
   }
@@ -129,10 +131,11 @@ async function createTask(taskDescription, completed, explanation, snippetId) {
 // create new note document
 async function createNote(developerNotes, snippetId) {
   try {
-    await pool.query(
-      "INSERT INTO notes (note_description,snippet_id)VALUES($1,$2) RETURNING note_id;",
+    const notesRawData = await pool.query(
+      "INSERT INTO notes (note_description,snippet_id)VALUES($1,$2) RETURNING note_id,note_description ;",
       [developerNotes, snippetId]
     );
+    return notesRawData.rows;
   } catch (error) {
     throw new apiError(500, "error:" + error);
   }
@@ -151,7 +154,20 @@ async function createQuestion(userQueryResponse, userQuestion, snippetId) {
     throw new apiError(500, "error:" + error);
   }
 }
-
+async function getAllQuestion(snippetId) {
+  const questionRawResonse = await pool.query(
+    "SELECT  userquestion ,ai_response FROM userquestions WHERE snippet_id=$1;",
+    [snippetId]
+  );
+  return questionRawResonse.rows;
+}
+async function getAllTasks(snippetId) {
+  const tasksRawResponse = await pool.query(
+    "SELECT task_id,task_description,is_completed,explanation FROM tasks WHERE snippet_id=$1;",
+    [snippetId]
+  );
+  return tasksRawResponse.rows;
+}
 //create new snippet
 async function createSnippet(
   generatedCode,
@@ -164,31 +180,48 @@ async function createSnippet(
   user_id,
   userQuestion
 ) {
+  let userSnippet, userTasks, userNotes, userQuestionResponse;
   const createSnippet = await pool.query(
-    "INSERT INTO snippets (snippet_code,user_id,snippet_title,language ) VALUES($1,$2,$3,$4) RETURNING snippet_code,user_id,snippet_title ,snippet_id;",
+    "INSERT INTO snippets (snippet_code,user_id,snippet_title,language ) VALUES($1,$2,$3,$4) RETURNING snippet_id,snippet_code,created_at, updated_at,snippet_title,language ;",
     [generatedCode, user_id, title, programmingLanguage]
   );
   if (!createSnippet.rows[0].snippet_id) {
     throw new apiError(500, "something went wrong while creating snippet");
   }
+  userSnippet = createSnippet.rows[0];
   const snippet_id = createSnippet.rows[0].snippet_id;
   const alltasks = [...completedTasks, ...remainingTasks];
   if (alltasks.length > 0) {
+    let tempArr = [];
     for (const task of alltasks) {
       const { taskDescription, completed, explanation, task_id } = task;
       if (!task_id) {
-        await createTask(taskDescription, completed, explanation, snippet_id);
+        const taskRawData = await createTask(
+          taskDescription,
+          completed,
+          explanation,
+          snippet_id
+        );
+        tempArr.push(taskRawData);
       }
     }
+    userTasks = tempArr;
   }
   if (developerNotes) {
-    await createNote(developerNotes, snippet_id);
+    userNotes = await createNote(developerNotes, snippet_id);
   }
   if (userQueryResponse && userQuestion) {
     await createQuestion(userQueryResponse, userQuestion, snippet_id);
   }
-  return snippet_id;
+  userQuestionResponse = await getAllQuestion(snippet_id);
+  return {
+    userSnippet,
+    userTasks,
+    userNotes,
+    userQuestionResponse,
+  };
 }
+
 //update the already created snippet
 async function updatesnippet(
   snippetId,
@@ -203,6 +236,8 @@ async function updatesnippet(
   userQuestion,
   user_id
 ) {
+  // Check if the snippet exists
+  let userSnippet, userTasks, userNotes, userQuestionResponse;
   try {
     const snippetExist = await pool.query(
       "SELECT snippet_id FROM snippets WHERE snippet_id=$1 and user_id=$2",
@@ -217,16 +252,17 @@ async function updatesnippet(
       "something went wrong while fetching snippet" + error
     );
   }
-
+  // Update the snippet with the new code and title
   try {
     if (generatedCode) {
       const updatedSnippet = await pool.query(
-        "UPDATE snippets  SET snippet_code=$1,snippet_title=$2, language=$3 , updated_at = CURRENT_TIMESTAMP where snippet_id=$4 RETURNING snippet_code ,snippet_title",
+        "UPDATE snippets  SET snippet_code=$1,snippet_title=$2, language=$3 , updated_at = CURRENT_TIMESTAMP where snippet_id=$4 RETURNING snippet_id,snippet_code,created_at, updated_at,snippet_title,language ",
         [generatedCode, title, programmingLanguage, snippetId]
       );
       if (!updatedSnippet.rows[0].snippet_code) {
         throw new apiError(500, "Something went wrong while updating snippet ");
       }
+      userSnippet = updatedSnippet.rows[0];
     }
   } catch (error) {
     throw new apiError(
@@ -234,12 +270,19 @@ async function updatesnippet(
       "something went wrong while updating snippet" + error
     );
   }
+  // Update tasks and notes
+  // Combine completed and remaining tasks
   const alltasks = [...completedTasks, ...remainingTasks];
   if (alltasks.length > 0) {
     for (const task of alltasks) {
       const { taskDescription, completed, explanation, task_id } = task;
       if (!task_id) {
-        await createTask(taskDescription, completed, explanation, snippetId);
+        const taskRawData = await createTask(
+          taskDescription,
+          completed,
+          explanation,
+          snippetId
+        );
       } else {
         const taskExist = await pool.query(
           "SELECT task_id FROM tasks WHERE task_id=$1",
@@ -248,13 +291,15 @@ async function updatesnippet(
         if (!taskExist.rows[0].task_id) {
           throw new apiError(500, "Task does not exist.");
         }
-        await pool.query(
-          "UPDATE tasks SET task_description =$1, is_completed=$2, explanation=$3, updated_at = CURRENT_TIMESTAMP WHERE task_id=$4",
+        const taskRawData = await pool.query(
+          "UPDATE tasks SET task_description =$1, is_completed=$2, explanation=$3, updated_at = CURRENT_TIMESTAMP WHERE task_id=$4 RETURNING task_id,task_description,is_completed,explanation",
           [taskDescription, completed, explanation, task_id]
         );
       }
     }
+    userTasks = await getAllTasks(snippetId);
   }
+  // Update or create notes
   if (noteId) {
     const notesExist = await pool.query(
       "SELECT note_id FROM notes WHERE note_id=$1",
@@ -263,19 +308,28 @@ async function updatesnippet(
     if (!notesExist.rows[0].note_id) {
       throw new apiError(500, " Note does not exist  ");
     }
-    await pool.query("UPDATE notes SET note_description=$1 , updated_at = CURRENT_TIMESTAMP WHERE note_id=$2", [
-      developerNotes,
-      noteId,
-    ]);
+    const notesRawData = await pool.query(
+      "UPDATE notes SET note_description=$1 , updated_at = CURRENT_TIMESTAMP WHERE note_id=$2 RETURNING note_id,note_description ",
+      [developerNotes, noteId]
+    );
+    userNotes = notesRawData.rows;
   } else {
-    await createNote(developerNotes, snippetId);
+    userNotes = await createNote(developerNotes, snippetId);
   }
+
   if (userQueryResponse != "" && userQuestion) {
     await createQuestion(userQueryResponse, userQuestion, snippetId);
   }
+  userQuestionResponse = await getAllQuestion(snippetId);
+  return {
+    userSnippet,
+    userTasks,
+    userNotes,
+    userQuestionResponse,
+  };
 }
 // snippet controller manages both updating and creating of snippet
-const snippetController = asyncHandler(async (req, res, next) => {
+const snippetController = asyncHandler(async (req, res) => {
   const { title, snippet, userQuestion, tasks, language, snippetId, noteId } =
     req?.body;
   const { user_id } = req?.user;
@@ -304,6 +358,7 @@ const snippetController = asyncHandler(async (req, res, next) => {
   } catch (error) {
     throw new apiError(400, "Error while parsing Json response ");
   }
+  let finalResponse;
   const {
     generatedCode,
     completedTasks,
@@ -312,40 +367,69 @@ const snippetController = asyncHandler(async (req, res, next) => {
     programmingLanguage,
     developerNotes,
   } = response;
-  let snippet_id = snippetId;
-  let note_id = noteId;
+  // Validate the response structure
   if (snippetId) {
-    await updatesnippet(
-      snippetId,
-      userQueryResponse,
-      programmingLanguage,
-      title,
-      generatedCode,
-      completedTasks,
-      remainingTasks,
-      developerNotes,
-      noteId,
-      userQuestion,
-      user_id
-    );
+    const { userSnippet, userTasks, userNotes, userQuestionResponse } =
+      await updatesnippet(
+        snippetId,
+        userQueryResponse,
+        programmingLanguage,
+        title,
+        generatedCode,
+        completedTasks,
+        remainingTasks,
+        developerNotes,
+        noteId,
+        userQuestion,
+        user_id
+      );
+    finalResponse = {
+      snippet: userSnippet,
+      tasks: userTasks,
+      notes: userNotes,
+      userQuestion: userQuestionResponse,
+    };
   } else {
-    snippet_id = await createSnippet(
-      generatedCode,
-      completedTasks,
-      remainingTasks,
-      userQueryResponse,
-      programmingLanguage,
-      developerNotes,
-      title,
-      user_id,
-      userQuestion
-    );
+    const { userSnippet, userTasks, userNotes, userQuestionResponse } =
+      await createSnippet(
+        generatedCode,
+        completedTasks,
+        remainingTasks,
+        userQueryResponse,
+        programmingLanguage,
+        developerNotes,
+        title,
+        user_id,
+        userQuestion
+      );
+    finalResponse = {
+      snippet: userSnippet,
+      tasks: userTasks,
+      notes: userNotes,
+      userQuestion: userQuestionResponse,
+    };
   }
 
+  if (req.user.access_token) {
+    res
+      .status(200)
+      .json(
+        new apiResponse(
+          200,
+          finalResponse,
+          "snippet successfult created and updated"
+        )
+      )
+      .cookie("access_token", req.user.access_token, options);
+  }
   res
     .status(200)
     .json(
-      new apiResponse(200, response, "snippet successfult created and updated")
+      new apiResponse(
+        200,
+        finalResponse,
+        "snippet successfult created and updated"
+      )
     );
 });
 
@@ -361,10 +445,14 @@ const getAllSnippetsController = asyncHandler(async (req, res) => {
   if (!snippets.rows[0]) {
     throw new apiError(404, "No snippets found for this user");
   }
+  if (req.user.access_token) {
+    res
+      .status(200)
+      .json(new apiResponse(200, snippets.rows, "Snippets fetched"))
+      .cookie("access_token", req.user.access_token, options);
+  }
   res.status(200).json(new apiResponse(200, snippets.rows, "Snippets fetched"));
 });
-
-
 
 const getSnippetByIdController = asyncHandler(async (req, res) => {
   const { snippetId } = req.query;
@@ -375,13 +463,25 @@ const getSnippetByIdController = asyncHandler(async (req, res) => {
   if (!snippetId || !user_id) {
     throw new apiError(400, "snippetId and user_id are required");
   }
-  console.log("hell0")
-  const [snippetResponse, tasksResponse, notesResponse, QuestionResponse] = await Promise.all([
-    pool.query("SELECT snippet_id,snippet_code,created_at, updated_at,snippet_title,language FROM snippets WHERE snippet_id=$1 AND user_id=$2;", [snippetId, user_id]),
-    pool.query("SELECT task_id,task_description,is_completed,explanation FROM tasks WHERE snippet_id=$1;", [snippetId]),
-    pool.query("SELECT note_id,note_description  FROM notes WHERE snippet_id=$1;", [snippetId]),
-    pool.query("SELECT  userquestion ,ai_response FROM userquestions WHERE snippet_id=$1;", [snippetId]),
-  ]);
+  const [snippetResponse, tasksResponse, notesResponse, QuestionResponse] =
+    await Promise.all([
+      pool.query(
+        "SELECT snippet_id,snippet_code,created_at, updated_at,snippet_title,language FROM snippets WHERE snippet_id=$1 AND user_id=$2;",
+        [snippetId, user_id]
+      ),
+      pool.query(
+        "SELECT task_id,task_description,is_completed,explanation FROM tasks WHERE snippet_id=$1;",
+        [snippetId]
+      ),
+      pool.query(
+        "SELECT note_id,note_description  FROM notes WHERE snippet_id=$1;",
+        [snippetId]
+      ),
+      pool.query(
+        "SELECT  userquestion ,ai_response FROM userquestions WHERE snippet_id=$1;",
+        [snippetId]
+      ),
+    ]);
 
   // Check if snippet exists, if not, throw error
   if (!snippetResponse.rows[0].snippet_id) {
@@ -393,10 +493,14 @@ const getSnippetByIdController = asyncHandler(async (req, res) => {
     snippet: snippetResponse?.rows[0],
     tasks: tasksResponse?.rows,
     notes: notesResponse?.rows,
-    question: QuestionResponse?.rows,
+    userQuestion: QuestionResponse?.rows,
   };
-
-  console.log("Response:", response);
+  if (req.user.access_token) {
+    res
+      .status(200)
+      .json(new apiResponse(200, response, "Snippet fetched"))
+      .cookie("access_token", req.user.access_token, options);
+  }
   // Send the response
   res.status(200).json(new apiResponse(200, response, "Snippet fetched"));
 });
