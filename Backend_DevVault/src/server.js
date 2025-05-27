@@ -17,16 +17,5 @@ const server = async () => {
   } catch (error) {
     console.error("Error starting the server:", error);
   }
-  setInterval(
-    async () => {
-      try {
-        await pool.query("SELECT 1");     
-      } catch (error) {
-        console.error("🔴 DB ping failed:", error.message);
-        server();
-      }
-    },
-    5*1000
-  ); // every 5 seconds
 };
 server();

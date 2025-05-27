@@ -21,23 +21,14 @@ pool.on("error", (err) => {
 });
 
 export const connect_DB = async (retries = 3, delay = 5000) => {
-  for (let i = 0; i < retries; i++) {
     try {
       const client = await pool.connect();
       await client.query("SELECT 1"); // Check DB is responsive
-      console.log("✅ Connected to the database.");
       client.release();
       console.log("📊 Pool Stats -> Total:", pool.totalCount, "| Idle:", pool.idleCount, "| Waiting:", pool.waitingCount);
       return;
     } catch (error) {
-      console.error(`❌ Attempt ${i + 1} failed: ${error.message}`);
-      if (i < retries - 1) {
-        console.log(`🔁 Retrying in ${delay / 1000} seconds...`);
-        await new Promise((res) => setTimeout(res, delay));
-      } else {
         console.error("🚫 Could not connect to the database after retries.");
         throw new Error("Error connecting to the database: " + error.message);
-      }
-    }
   }
 };

@@ -3,13 +3,17 @@ import axios from "axios";
 const API_URL= import.meta.env.VITE_API_URL;
 export const verifyUser=createAsyncThunk(
     "verifyUser/authenticationSlice",
-    async () => {
+    async (_,{dispatch}) => {
         try {
+              dispatch(verifyuserReducer(true))
            const response=  await axios.get(`${API_URL}/user/verifyuser`, {
                 withCredentials: true
             });
+            dispatch(verifyuserReducer(false))
           return response.data;
         } catch (error) {
+            dispatch(verifyuserReducer(false))
+
             console.error("Error verifying user:", error);
             throw error;
         }
@@ -62,13 +66,17 @@ const authenticationSlice = createSlice({
         isAuthenticated: false,
         userData: null,
         error: null,
+        isVerifyingUser:false
     },
     reducers: {
 logoutReducer: (state) => {
             state.isAuthenticated = false;
             state.userData = null;
             state.error = null;
-        }
+        },
+verifyuserReducer:(state,action)=>{
+    state.isVerifyingUser=action.payload
+}
     },
     extraReducers:(builder)=>{
         builder
@@ -124,5 +132,5 @@ logoutReducer: (state) => {
             });
     }
 })
-export const { logoutReducer } = authenticationSlice.actions;
+export const { logoutReducer,verifyuserReducer } = authenticationSlice.actions;
 export  default authenticationSlice.reducer

@@ -4,9 +4,7 @@ import Sidebar from './Sidebar.jsx'
 import SnippetEditor from './SnippetEditor.jsx'
 import { useDispatch, useSelector } from 'react-redux'
 import { getAllSnippets } from '../Store/SnippetSlices/snippetslice.js'
-
-
-
+import DeleteSnippet from "./Ui/DeleteSnippet.jsx"
 
 
 export default function Dashboard() {
@@ -37,6 +35,7 @@ export default function Dashboard() {
     const [showSideBar,setShowSideBar]=useState(false)
     const{isAuthenticated,isLoading}= useSelector((state) => state.authenticationSlice)
     const{snippetData}= useSelector((state) => state.snippetSlice) 
+    const{isVerifyingUser}=useSelector(state=>state.authenticationSlice)
     useEffect(() => {
         const snippetTasks=[]
         if(snippetData && snippetData?.snippet?.snippet_id){
@@ -65,10 +64,10 @@ export default function Dashboard() {
     const{notes}=snippetData
     useEffect(() => {
         // Check if user is authenticated
-        if (!isAuthenticated && !isLoading) {
+        if (!isAuthenticated && !isLoading && !isVerifyingUser) {
             navigate('/') // Redirect to home if not authenticated
         }
-    }, [isAuthenticated, isLoading, navigate, dispatch])
+    }, [isAuthenticated, isLoading, navigate, dispatch,isVerifyingUser])
     // Load snippets from localStorage on initial render
     useEffect(() => {
         dispatch(getAllSnippets())
@@ -119,6 +118,7 @@ export default function Dashboard() {
       },[width])
     return (
         <div className="flex h-screen bg-black text-white relative">
+          {/* <DeleteSnippet/> */}
             <Sidebar
                 onSnippetCreate={handleSnippetCreate}
                 currentSnippetId={currentSnippet?.id}
