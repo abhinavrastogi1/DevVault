@@ -7,12 +7,14 @@ import { cn } from "../lib/utils.js";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "../Store/Authantication/authenticationSlice.js";
 import { getSnippetById } from "../Store/SnippetSlices/snippetslice.js";
+import { GiHamburgerMenu } from "react-icons/gi";
 
 export default function Sidebar({
-  
-  
   onSnippetCreate,
   currentSnippetId,
+  setShowSideBar,
+  showSideBar,
+  isSmallScreen
 }) {
   const [activeTab, setActiveTab] = useState("snippets");
   const{isLoading}= useSelector((state) => state.authenticationSlice)
@@ -32,9 +34,13 @@ const formattedDate = indianStandardTime.toLocaleDateString("en-IN", options);
 return formattedDate;
   }
   return (
-    <div className="w-80 border-r border-gray-800 flex flex-col h-full bg-gray-950">
+    <div className={`w-80 border-r border-gray-800 flex flex-col h-full bg-gray-950 z-50 transition-transform duration-500 ease-in-out 
+     ${ isSmallScreen ?`${ showSideBar  ? "absolute -translate-x-full " : "absolute translate-x-0 " }`:"" }
+      
+    `}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-800 flex items-center">
+      <div className="flex flex-row justify-between items-center border-gray-800 border-b ">
+      <div className="p-4  flex items-center">
         <div className="w-8 h-8 relative mr-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center">
           <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-white" stroke="currentColor" strokeWidth="2">
             {/* Icon for DevVault */}
@@ -52,7 +58,12 @@ return formattedDate;
         </div>
         <h1 className="text-xl font-bold">DevVault</h1>
       </div>
-
+      { isSmallScreen &&<button className="hover:shadow-2xl  h-8 w-8 items-center flex justify-center scale-110  hover:scale-125  ease-in-out transition transform  "
+               onClick={()=>{setShowSideBar(!showSideBar)}}
+               >      
+                  <GiHamburgerMenu className=" hover:shadow-white text-white text-xl font-extrabold hover:cursor-pointer " />
+              </button>
+             }</div>
       {/* Navigation */}
       <nav className="p-2 space-y-1">
         <button

@@ -5,6 +5,10 @@ import SnippetEditor from './SnippetEditor.jsx'
 import { useDispatch, useSelector } from 'react-redux'
 import { getAllSnippets } from '../Store/SnippetSlices/snippetslice.js'
 
+
+
+
+
 export default function Dashboard() {
     const navigate = useNavigate() // useNavigate for routing in React
     const [currentSnippet, setCurrentSnippet] = useState({
@@ -28,6 +32,9 @@ export default function Dashboard() {
          language: 'javascript',
         questions: [],
     })
+    const [width, setWidth] = useState(window.innerWidth);
+    const[isSmallScreen,setIsSmallScreeen]=useState(false);
+    const [showSideBar,setShowSideBar]=useState(false)
     const{isAuthenticated,isLoading}= useSelector((state) => state.authenticationSlice)
     const{snippetData}= useSelector((state) => state.snippetSlice) 
     useEffect(() => {
@@ -91,17 +98,43 @@ export default function Dashboard() {
         setCurrentSnippet(newSnippet)
     }
 
+
+    useEffect(() => {
+        const handleResize = () => {
+          setWidth(window.innerWidth);
+        }
+    
+        window.addEventListener("resize", handleResize);
+             
+        // Cleanup on unmount
+        return () => window.removeEventListener("resize", handleResize);
+      }, []);
+      useEffect(()=>{
+        if(width <=1024){
+          setIsSmallScreeen(true)  
+          }
+       else if(width> 1025){
+        setIsSmallScreeen(false)
+      }
+      },[width])
     return (
-        <div className="flex h-screen bg-black text-white">
+        <div className="flex h-screen bg-black text-white relative">
             <Sidebar
                 onSnippetCreate={handleSnippetCreate}
                 currentSnippetId={currentSnippet?.id}
+                showSideBar={showSideBar}
+                setShowSideBar={setShowSideBar}
+                isSmallScreen={isSmallScreen}
+
             />
             <main className="flex-1 overflow-hidden">
                 {currentSnippet ? (
                     <SnippetEditor
                         snippet={currentSnippet}
                         note_id={snippetData.notes[0]?.note_id || ''}
+                        isSmallScreen={isSmallScreen}
+                        showSideBar={showSideBar}
+                        setShowSideBar={setShowSideBar}
                     />
                 ) : (
                     <div className="flex items-center justify-center h-full">

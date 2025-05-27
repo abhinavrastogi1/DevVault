@@ -25,9 +25,8 @@ export const connect_DB = async (retries = 3, delay = 5000) => {
     try {
       const client = await pool.connect();
       await client.query("SELECT 1"); // Check DB is responsive
-      client.release();
-
       console.log("✅ Connected to the database.");
+      client.release();
       console.log("📊 Pool Stats -> Total:", pool.totalCount, "| Idle:", pool.idleCount, "| Waiting:", pool.waitingCount);
       return;
     } catch (error) {
