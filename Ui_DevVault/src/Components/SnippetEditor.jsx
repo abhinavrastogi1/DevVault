@@ -5,6 +5,8 @@ import MonacoEditor from "@monaco-editor/react";
 import TaskSection from "./TaskSection.jsx";
 import NotesSection from "./NotesSection.jsx";
 import ChatSection from "./ChatSection.jsx";
+import { createUpdateSnippet, deleteTask } from "../Store/SnippetSlices/snippetslice.js";
+import { useDispatch } from "react-redux";
 
 export default function SnippetEditor({ snippet, onUpdate }) {
   const [title, setTitle] = useState(snippet.title);
@@ -12,7 +14,9 @@ export default function SnippetEditor({ snippet, onUpdate }) {
   const [notes, setNotes] = useState(snippet.notes);
   const [tasks, setTasks] = useState(snippet.tasks);
   const [language, setLanguage] = useState(snippet.language || "javascript");
-
+  const[questions, setQuestions] = useState(snippet.questions || []);
+  const[newQuestion, setNewQuestion] = useState("");
+const dispatch = useDispatch();
   // Update local state when snippet changes
   useEffect(() => {
     setTitle(snippet.title);
@@ -20,6 +24,7 @@ export default function SnippetEditor({ snippet, onUpdate }) {
     setNotes(snippet.notes);
     setTasks(snippet.tasks);
     setLanguage(snippet.language || "javascript");
+    setQuestions(snippet.questions || []);
   }, [snippet]);
 
   // Save changes to the snippet
@@ -33,31 +38,26 @@ export default function SnippetEditor({ snippet, onUpdate }) {
       language,
     });
   };
-
-  // Auto-save when changes are made
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      saveChanges();
-    }, 1000);
-
-    return () => clearTimeout(timeoutId);
-  }, [title, code, notes, tasks, language]);
-
+  const newQuestionHandler = (value) => {
+    setNewQuestion(value)
+  };
   const handleTitleChange = (e) => {
     setTitle(e.target.value);
   };
-
   const handleTaskToggle = (taskId) => {
     setTasks(tasks.map((task) => (task.id === taskId ? { ...task, completed: !task.completed } : task)));
   };
 
   const handleTaskAdd = (text) => {
     if (tasks.length >= 10) return;
-    const newTask = { id: Date.now().toString(), text, completed: false };
+    const newTask = { id: "", text, completed: false };
     setTasks([...tasks, newTask]);
   };
 
   const handleTaskDelete = (taskId) => {
+    if(taskId){
+      dispatch(deleteTask(taskId));
+    }
     setTasks(tasks.filter((task) => task.id !== taskId));
   };
 
@@ -72,10 +72,23 @@ export default function SnippetEditor({ snippet, onUpdate }) {
   const handleLanguageChange = (e) => {
     setLanguage(e.target.value);
   };
-
+const handleSubmit= (e)=>{
+  e.preventDefault();
+ const noteId=""
+  const snippetData={ title:title,
+     snippet:code, 
+     userQuestion:newQuestion, 
+     tasks:tasks, 
+     language:language, 
+     snippetId:snippet.id,
+      noteId:noteId 
+    } 
+    dispatch(createUpdateSnippet(snippetData))
+    setNewQuestion("");
+  }
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="border-b border-gray-800 p-4">
+      <div className="border-b border-gray-800 p-4 flex items-center  justify-between space-x-4 bg-gray-900">
         <input
           type="text"
           value={title}
@@ -83,8 +96,13 @@ export default function SnippetEditor({ snippet, onUpdate }) {
           className="text-2xl font-bold bg-transparent border-none outline-none w-full"
           placeholder="Snippet Title"
         />
+        <button
+          onClick={saveChanges}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors onhover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Save 
+        </button>
       </div>
-
       <div className="flex-1 overflow-auto p-4 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <TaskSection tasks={tasks} onTaskToggle={handleTaskToggle} onTaskAdd={handleTaskAdd} onTaskDelete={handleTaskDelete} />
@@ -116,7 +134,7 @@ export default function SnippetEditor({ snippet, onUpdate }) {
             </select>
           </div>
 
-          <div className="h-[50vh] border border-gray-800 rounded-md overflow-hidden">
+          <div className="h-[40vh] border border-gray-800 rounded-md overflow-hidden">
             <MonacoEditor
               height="100%"
               language={language}
@@ -133,7 +151,7 @@ export default function SnippetEditor({ snippet, onUpdate }) {
           </div>
         </div>
 
-        <ChatSection snippetId={snippet.id} />
+        <ChatSection  questions={questions} newQuestionHandler={newQuestionHandler} handleSubmit={handleSubmit} newQuestion={newQuestion} />
       </div>
     </div>
   );

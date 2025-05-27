@@ -30,6 +30,49 @@ export const getSnippetById = createAsyncThunk(
     }
   }
 );
+export const createUpdateSnippet = createAsyncThunk( 
+  "snippetSlice/createUpdateSnippet",
+  async (snippetData) => {
+    try {
+      const response = await axios.post(`${API_URL}/snippet/createsnippet`, snippetData, {
+        withCredentials: true
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error("Error creating/updating snippet:", error);
+      throw error;
+    }
+  }
+ )  
+ export const deleteSnippet = createAsyncThunk(
+  "snippetSlice/deleteSnippet",
+  async (snippetId) => {
+    try {
+      const response = await axios.delete(`${API_URL}/snippet/deletesnippet`, {
+        withCredentials: true,
+        data: { snippetId }
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error("Error deleting snippet:", error);
+      throw error;
+    }
+  }
+);
+export const deleteTask = createAsyncThunk(
+  "snippetSlice/deleteTask",
+  async (taskId) => {
+    try {
+        await axios.delete(`${API_URL}/snippet/deletetask`, {
+        withCredentials: true,
+        task_id: { taskId }
+      });
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      throw error;
+    }
+  }
+)
 const snippetSlice = createSlice({
   name: "snippetSlice",
   initialState: {
@@ -43,21 +86,6 @@ const snippetSlice = createSlice({
     activeTab: "snippets", // Default active tab
   },        
 reducers: {
-    setSnippets: (state, action) => {
-      state.snippets = action.payload;
-    },
-    setActiveSnippet: (state, action) => {
-      state.activeSnippet = action.payload;
-    },
-    setLoading: (state, action) => {
-      state.isLoading = action.payload;
-    },
-    setError: (state, action) => {
-      state.error = action.payload;
-    },
-    setActiveTab: (state, action) => {
-      state.activeTab = action.payload;
-    },
   },
   extraReducers: (builder) => {
     builder
@@ -82,6 +110,32 @@ reducers: {
         state.snippetData = action.payload;
       })
       .addCase(getSnippetById.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message;
+      })
+      .addCase(createUpdateSnippet.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(createUpdateSnippet.fulfilled, (state, action) => {
+        state.isLoading = false;
+        // Update the snippetData with the newly created/updated snippet
+        state.snippetData = action.payload;
+      })
+      .addCase(createUpdateSnippet.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message;
+      })
+      .addCase(deleteSnippet.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(deleteSnippet.fulfilled, (state, action) => {
+        state.isLoading = false;
+        // Remove the deleted snippet from the snippets array
+        state.snippets = state.snippets.filter(snippet => snippet.snippet_id !== action.payload.snippet_id);
+      })
+      .addCase(deleteSnippet.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.error.message;
       });

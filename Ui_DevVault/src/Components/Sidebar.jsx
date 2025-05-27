@@ -21,7 +21,6 @@ export default function Sidebar({
   const onLogout = () => {
     // Handle logout logic here, e.g., clear user session, redirect to login page, etc.
     dispatch(signOut())
-    console.log("User logged out");
   };
   
   function updatedAtData(date){

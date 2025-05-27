@@ -4,7 +4,6 @@ import Sidebar from './Sidebar.jsx'
 import SnippetEditor from './SnippetEditor.jsx'
 import { useDispatch, useSelector } from 'react-redux'
 import { getAllSnippets } from '../Store/SnippetSlices/snippetslice.js'
-import { set } from 'date-fns'
 
 export default function Dashboard() {
     const navigate = useNavigate() // useNavigate for routing in React
@@ -27,23 +26,34 @@ export default function Dashboard() {
         code:  "// Start coding here",
         notes: ' // Add your notes here',
          language: 'javascript',
+        questions: [],
     })
     const{isAuthenticated,isLoading}= useSelector((state) => state.authenticationSlice)
     const{snippetData}= useSelector((state) => state.snippetSlice) 
     useEffect(() => {
+        const snippetTasks=[]
         if(snippetData && snippetData?.snippet?.snippet_id){
+         if(snippetData.tasks && snippetData.tasks.length > 0){
+            snippetData.tasks.forEach((task) => {
+                snippetTasks.push({
+                    id: task.task_id,
+                    text: task.task_description,                    
+                    completed: task.is_completed,
+                })
+            })
+        }
         setCurrentSnippet({
             id: snippetData.snippet.snippet_id,
             title: snippetData.snippet.snippet_title || 'Untitled Snippet',
-            tasks:[],
+            tasks:snippetTasks,
             code: snippetData.snippet.snippet_code  || "// Start coding here",
             notes: snippetData.notes[0].note_description || ' // Add your notes here',
             language:snippetData.snippet.language || 'typescript',
+            questions: snippetData.userQuestion || [],
         })
     }
     }, [snippetData])
 
-    console.log(snippetData)
     const dispatch = useDispatch();
     const{notes}=snippetData
     useEffect(() => {
@@ -75,7 +85,8 @@ export default function Dashboard() {
             ],
             code:  "// Start coding here",
             notes: ' // Add your notes here',
-             language: 'javascript',
+            language: 'javascript',
+            questions: [],
         }
         setCurrentSnippet(newSnippet)
     }

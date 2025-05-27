@@ -72,8 +72,8 @@ async function aiResponse(
   generatedCode:  "...code string if any task involved coding..." code for every task in the same code key but formatted",
   completedTasks: [
     {
-      "task_id": "provided task_id",
-      "taskDescription": "...task name...",
+      "task_id": "provided task id",
+      "taskDescription": "task text",
       "completed": true,
       "explanation": "... detailed explanation of what the user asked for and what the code does..."
     }, {
@@ -156,7 +156,7 @@ async function createQuestion(userQueryResponse, userQuestion, snippetId) {
 }
 async function getAllQuestion(snippetId) {
   const questionRawResonse = await pool.query(
-    "SELECT  userquestion ,ai_response FROM userquestions WHERE snippet_id=$1;",
+    "SELECT  userquestion ,question_id,created_at,ai_response FROM userquestions WHERE snippet_id=$1;",
     [snippetId]
   );
   return questionRawResonse.rows;
@@ -259,10 +259,20 @@ async function updatesnippet(
         "UPDATE snippets  SET snippet_code=$1,snippet_title=$2, language=$3 , updated_at = CURRENT_TIMESTAMP where snippet_id=$4 RETURNING snippet_id,snippet_code,created_at, updated_at,snippet_title,language ",
         [generatedCode, title, programmingLanguage, snippetId]
       );
-      if (!updatedSnippet.rows[0].snippet_code) {
+      if (!updatedSnippet.rows[0].snippet_id) {
         throw new apiError(500, "Something went wrong while updating snippet ");
       }
       userSnippet = updatedSnippet.rows[0];
+    }
+    else{
+    let  fetchedData = await pool.query(
+        "SELECT snippet_id,snippet_code,created_at, updated_at,snippet_title,language FROM snippets WHERE snippet_id=$1;",
+        [snippetId]
+      );
+      if (!fetchedData.rows[0].snippet_id) {
+        throw new apiError(500, "Something went wrong while fetching snippet ");
+      }
+      userSnippet = fetchedData.rows[0];
     }
   } catch (error) {
     throw new apiError(
@@ -297,8 +307,8 @@ async function updatesnippet(
         );
       }
     }
-    userTasks = await getAllTasks(snippetId);
   }
+  userTasks = await getAllTasks(snippetId);
   // Update or create notes
   if (noteId) {
     const notesExist = await pool.query(
@@ -340,12 +350,6 @@ const snippetController = asyncHandler(async (req, res) => {
     throw new apiError(
       400,
       "Please provide all the required fields: title, tasks, language."
-    );
-  }
-  if (snippet.length > 1000) {
-    throw new apiError(
-      400,
-      "Snippet is too long. Please limit it to 1000 characters."
     );
   }
   const rawResponse = await aiResponse(tasks, snippet, userQuestion, language);
@@ -409,19 +413,6 @@ const snippetController = asyncHandler(async (req, res) => {
       userQuestion: userQuestionResponse,
     };
   }
-
-  if (req.user.access_token) {
-    res
-      .status(200)
-      .json(
-        new apiResponse(
-          200,
-          finalResponse,
-          "snippet successfult created and updated"
-        )
-      )
-      .cookie("access_token", req.user.access_token, options);
-  }
   res
     .status(200)
     .json(
@@ -476,7 +467,7 @@ const getSnippetByIdController = asyncHandler(async (req, res) => {
       [snippetId]
     );
     const QuestionResponse = await pool.query(
-      "SELECT  userquestion ,ai_response FROM userquestions WHERE snippet_id=$1;",
+      "SELECT  userquestion ,question_id,created_at,ai_response FROM userquestions WHERE snippet_id=$1;",
       [snippetId]
     );
     // const [snippetResponse, tasksResponse, notesResponse, QuestionResponse] = await Promise.all([
@@ -493,7 +484,7 @@ const getSnippetByIdController = asyncHandler(async (req, res) => {
     //     [snippetId]
     //   ),
     //   pool.query(
-    //     "SELECT userquestion, ai_response FROM userquestions WHERE snippet_id=$1;",
+    //     "SELECT userquestion,question_id,created_at, ai_response FROM userquestions WHERE snippet_id=$1;",
     //     [snippetId]
     //   ),
     // ]);
