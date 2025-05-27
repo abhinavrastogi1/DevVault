@@ -27,7 +27,7 @@ async function aiResponse(
       "6. Write all code for completed tasks in the 'code' field as a single multi-line string. Format it like Prettier: tabWidth 2, semi, single quotes, trailing commas.",
       "7. For each completed task, add a short explanation in completedTasks: [{
       "taskId": "...taskId..."",
-      "taskDescription": "...task name...",
+      "taskDescription": "...task text...",
       "completed": true,
       "explanation": "... detailed explanation of what the user asked for and what the code does..."
     }
@@ -263,9 +263,8 @@ async function updatesnippet(
         throw new apiError(500, "Something went wrong while updating snippet ");
       }
       userSnippet = updatedSnippet.rows[0];
-    }
-    else{
-    let  fetchedData = await pool.query(
+    } else {
+      let fetchedData = await pool.query(
         "SELECT snippet_id,snippet_code,created_at, updated_at,snippet_title,language FROM snippets WHERE snippet_id=$1;",
         [snippetId]
       );
@@ -430,7 +429,7 @@ const getAllSnippetsController = asyncHandler(async (req, res) => {
     throw new apiError(400, "user_id is required");
   }
   const snippets = await pool.query(
-    "SELECT snippet_id,snippet_title ,updated_at  FROM snippets WHERE user_id=$1",
+    "SELECT snippet_id,snippet_title ,updated_at  FROM snippets WHERE user_id=$1 ORDER BY created_at DESC",
     [user_id]
   );
   if (req.user.access_token) {
@@ -488,7 +487,7 @@ const getSnippetByIdController = asyncHandler(async (req, res) => {
     //     [snippetId]
     //   ),
     // ]);
-   
+
     // somehting is not workking in my db its not allocating enough pool to me to run promise
 
     // Check if snippet exists, if not, throw error
@@ -511,8 +510,114 @@ const getSnippetByIdController = asyncHandler(async (req, res) => {
   // Send the response
   res.status(200).json(new apiResponse(200, response, "Snippet fetched"));
 });
+const deleteTaskController = asyncHandler(async (req, res) => {
+  const { taskId } = req.query;
+  if (!taskId) {
+    throw new apiError(400, "taskId is required");
+  }
+  try {
+    const taskExist = await pool.query(
+      "SELECT task_id FROM tasks WHERE task_id=$1",
+      [taskId]
+    );
+    if (!taskExist.rows[0].task_id) {
+      throw new apiError(404, "Task does not exist");
+    }
+    await pool.query("DELETE FROM tasks WHERE task_id=$1", [taskId]);
+    res.status(200).json(new apiResponse(200, {}, "Task deleted successfully"));
+  } catch (error) {
+    throw new apiError(
+      500,
+      "Something went wrong while deleting task: " + error.message
+    );
+  }
+});
+const saveSnippetController = asyncHandler(async (req, res,next) => {
+  const { title, snippet, tasks, language, snippetId, noteId ,note} = req?.body;
+  const { user_id } = req?.user;
+  if (!user_id) {
+    throw new apiError(400, "user_id is required");
+  }
+  if (!title && language) {
+    throw new apiError(400, "title & language is required");
+  }
+  if (snippetId) {
+    const snippetExist = await pool.query(
+      "SELECT snippet_id FROM snippets WHERE snippet_id=$1 AND user_id=$2 ",
+      [snippetId, user_id]
+    );
+    if (!snippetExist.rows[0].snippet_id) {
+      throw new apiError(404, "Snippet does not exist");
+    }
+     await pool.query(
+      "UPDATE snippets SET snippet_code=$1, snippet_title=$2, language=$3, updated_at=CURRENT_TIMESTAMP WHERE snippet_id=$4 RETURNING snippet_id,snippet_code, updated_at,snippet_title,language",
+      [snippet, title, language, snippetId]
+    );
+    if (tasks && tasks.length > 0) {
+      for (const task of tasks) {
+        const { text, completed, explanation = "",id } = task;
+        if ( id==""|| id =="1" || id =="2"||id =="3") {
+          console.log("withoutid")
+          await createTask(text, completed, explanation, snippetId);
+        } else {
+          const taskExist = await pool.query(
+            "SELECT task_id FROM tasks WHERE task_id=$1",
+            [id]
+          );
+          if (!taskExist.rows[0].task_id) {
+            throw new apiError(404, "Task does not exist");
+          }
+          await pool.query(
+            "UPDATE tasks SET task_description=$1, is_completed=$2, explanation=$3, updated_at=CURRENT_TIMESTAMP WHERE task_id=$4 RETURNING task_id,task_description,is_completed,explanation",
+            [text, completed, explanation, id]
+          );
+        }
+      }
+    }
+    if (noteId) {
+      const noteExist = await pool.query(
+        "SELECT note_id FROM notes WHERE note_id=$1",
+        [noteId]
+      );
+      if (!noteExist.rows[0].note_id) {
+        throw new apiError(404, "Note does not exist");
+      }
+      await pool.query(
+        "UPDATE notes SET note_description=$1, updated_at=CURRENT_TIMESTAMP WHERE note_id=$2 RETURNING note_id,note_description",
+        [note, noteId]
+      );
+    }
+  } 
+  else {
+    const createdSnippet = await pool.query(
+      "INSERT INTO snippets (snippet_code, user_id, snippet_title, language) VALUES ($1, $2, $3, $4) RETURNING snippet_id",
+      [snippet, user_id, title, language]
+    );
+    if (!createdSnippet.rows[0].snippet_id) {
+      throw new apiError(500, "Something went wrong while creating snippet");
+    }
+    const snippetId = createdSnippet.rows[0].snippet_id
+    if (tasks && tasks.length > 0) {
+      for (const task of tasks) {
+        const { text, completed, explanation = "" } = task;
+        await createTask(text, completed, explanation, snippetId);
+      }
+    }
+    const createNote = await pool.query(
+      "INSERT INTO notes (note_description, snippet_id) VALUES ($1, $2) RETURNING note_id",
+      [note, snippetId]
+    );
+    if (!createNote.rows[0].note_id) {
+      throw new apiError(500, "Something went wrong while creating note");
+    }  
+  }
+ next()
+});
+
 export {
   snippetController,
   getSnippetByIdController,
   getAllSnippetsController,
+  deleteTaskController,
+  saveSnippetController,
 };

@@ -65,7 +65,7 @@ export const deleteTask = createAsyncThunk(
     try {
         await axios.delete(`${API_URL}/snippet/deletetask`, {
         withCredentials: true,
-        task_id: { taskId }
+        params:{taskId: taskId}
       });
     } catch (error) {
       console.error("Error deleting task:", error);
@@ -73,6 +73,20 @@ export const deleteTask = createAsyncThunk(
     }
   }
 )
+export const saveSnippet = createAsyncThunk(
+  "snippetSlice/saveSnippet",
+  async (snippetData) => {
+    try {
+      const response = await axios.post(`${API_URL}/snippet/savesnippet`, snippetData, {
+        withCredentials: true
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error("Error saving snippet:", error);
+      throw error;
+    }
+  }
+);
 const snippetSlice = createSlice({
   name: "snippetSlice",
   initialState: {
@@ -138,7 +152,20 @@ reducers: {
       .addCase(deleteSnippet.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.error.message;
-      });
+      })
+      .addCase(saveSnippet.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(saveSnippet.fulfilled, (state, action) => {
+        state.isLoading = false;
+        // Update the snippetData with the saved snippet
+        state.snippets = action.payload;
+      })
+      .addCase(saveSnippet.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message;
+      })
   },
 
 })

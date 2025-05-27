@@ -5,14 +5,14 @@ import MonacoEditor from "@monaco-editor/react";
 import TaskSection from "./TaskSection.jsx";
 import NotesSection from "./NotesSection.jsx";
 import ChatSection from "./ChatSection.jsx";
-import { createUpdateSnippet, deleteTask } from "../Store/SnippetSlices/snippetslice.js";
+import { createUpdateSnippet, deleteTask, saveSnippet } from "../Store/SnippetSlices/snippetslice.js";
 import { useDispatch } from "react-redux";
 
-export default function SnippetEditor({ snippet, onUpdate }) {
+export default function SnippetEditor({ snippet, note_id }) {
   const [title, setTitle] = useState(snippet.title);
-  const [code, setCode] = useState(snippet.code);
-  const [notes, setNotes] = useState(snippet.notes);
-  const [tasks, setTasks] = useState(snippet.tasks);
+  const [code, setCode] = useState(snippet.code||"");
+  const [notes, setNotes] = useState(snippet.notes||"");
+  const [tasks, setTasks] = useState(snippet.tasks||[]);
   const [language, setLanguage] = useState(snippet.language || "javascript");
   const[questions, setQuestions] = useState(snippet.questions || []);
   const[newQuestion, setNewQuestion] = useState("");
@@ -26,17 +26,20 @@ const dispatch = useDispatch();
     setLanguage(snippet.language || "javascript");
     setQuestions(snippet.questions || []);
   }, [snippet]);
-
   // Save changes to the snippet
   const saveChanges = () => {
-    onUpdate({
-      ...snippet,
-      title,
-      code,
-      notes,
-      tasks,
-      language,
-    });
+    if(title){
+  const snippetData={ 
+    title:title,
+     snippet:code, 
+     tasks:tasks, 
+     language:language, 
+     snippetId:snippet.id,
+      noteId:note_id ,   
+     note: notes
+
+    } 
+  dispatch(saveSnippet(snippetData))}
   };
   const newQuestionHandler = (value) => {
     setNewQuestion(value)
@@ -53,7 +56,6 @@ const dispatch = useDispatch();
     const newTask = { id: "", text, completed: false };
     setTasks([...tasks, newTask]);
   };
-
   const handleTaskDelete = (taskId) => {
     if(taskId){
       dispatch(deleteTask(taskId));
@@ -75,16 +77,17 @@ const dispatch = useDispatch();
 const handleSubmit= (e)=>{
   e.preventDefault();
  const noteId=""
+ if(title){
   const snippetData={ title:title,
      snippet:code, 
      userQuestion:newQuestion, 
      tasks:tasks, 
      language:language, 
      snippetId:snippet.id,
-      noteId:noteId 
+      noteId:noteId ,
     } 
     dispatch(createUpdateSnippet(snippetData))
-    setNewQuestion("");
+    setNewQuestion("");}
   }
   return (
     <div className="h-full flex flex-col overflow-hidden">

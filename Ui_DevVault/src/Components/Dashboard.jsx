@@ -12,13 +12,13 @@ export default function Dashboard() {
         title: 'Welcome to DevVault',
         tasks: [
             {
-                id: '1',
+                id: "1",
                 text: 'Create your first snippet',
                 completed: false,
             },
-            { id: '2', text: 'Add some tasks', completed: false },
+            { id: "2", text: 'Add some tasks', completed: false },
             {
-                id: '3',
+                id: "3",
                 text: 'Write code in the editor',
                 completed: false,
             },
@@ -72,13 +72,13 @@ export default function Dashboard() {
             title: 'Welcome to DevVault',
             tasks: [
                 {
-                    id: '1',
+                    id: "1",
                     text: 'Create your first snippet',
                     completed: false,
                 },
-                { id: '2', text: 'Add some tasks', completed: false },
+                { id: "2", text: 'Add some tasks', completed: false },
                 {
-                    id: '3',
+                    id: "3",
                     text: 'Write code in the editor',
                     completed: false,
                 },
@@ -101,6 +101,7 @@ export default function Dashboard() {
                 {currentSnippet ? (
                     <SnippetEditor
                         snippet={currentSnippet}
+                        note_id={snippetData.notes[0]?.note_id || ''}
                     />
                 ) : (
                     <div className="flex items-center justify-center h-full">
