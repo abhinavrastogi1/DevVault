@@ -6,10 +6,11 @@ import { LogOut, Code, CheckSquare, MessageSquare, FileText, Plus } from "lucide
 import { cn } from "../lib/utils.js";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "../Store/Authantication/authenticationSlice.js";
+import { getSnippetById } from "../Store/SnippetSlices/snippetslice.js";
 
 export default function Sidebar({
   
-  onSnippetSelect,
+  
   onSnippetCreate,
   currentSnippetId,
 }) {
@@ -121,7 +122,7 @@ return formattedDate;
                 "w-full text-left p-2 rounded-md transition-colors",
                 snippet.snippet_id === currentSnippetId ? "bg-gray-800 text-white" : "hover:bg-gray-900 text-gray-300"
               )}
-              onClick={() => onSnippetSelect(snippet)}
+              onClick={() => dispatch(getSnippetById(snippet.snippet_id))}
             >
               <div className="font-medium truncate">{snippet.snippet_title}</div>
               <div className="text-xs text-gray-500">
@@ -139,7 +140,6 @@ return formattedDate;
           className="flex items-center w-full p-2 rounded-md text-gray-400 hover:bg-gray-900 hover:text-white transition-colors cursor-pointer "
           type="button"
           disabled={isLoading}
-
         >
           <LogOut className="mr-3 h-5 w-5" />
           {isLoading ? "Logging out..." : "Logout"}

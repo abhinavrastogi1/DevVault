@@ -20,13 +20,13 @@ const server = async () => {
   setInterval(
     async () => {
       try {
-        await pool.query("SELECT 1");
+        await pool.query("SELECT 1");     
       } catch (error) {
         console.error("🔴 DB ping failed:", error.message);
+        server();
       }
     },
     5*1000
-  ); // every 1 minutes
+  ); // every 5 seconds
 };
-// src/utils/dbPing.js
 server();

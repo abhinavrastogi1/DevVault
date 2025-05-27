@@ -460,43 +460,62 @@ const getSnippetByIdController = asyncHandler(async (req, res) => {
   if (!snippetId || !user_id) {
     throw new apiError(400, "snippetId and user_id are required");
   }
-  const [snippetResponse, tasksResponse, notesResponse, QuestionResponse] =
-    await Promise.all([
-      pool.query(
-        "SELECT snippet_id,snippet_code,created_at, updated_at,snippet_title,language FROM snippets WHERE snippet_id=$1 AND user_id=$2;",
-        [snippetId, user_id]
-      ),
-      pool.query(
-        "SELECT task_id,task_description,is_completed,explanation FROM tasks WHERE snippet_id=$1;",
-        [snippetId]
-      ),
-      pool.query(
-        "SELECT note_id,note_description  FROM notes WHERE snippet_id=$1;",
-        [snippetId]
-      ),
-      pool.query(
-        "SELECT  userquestion ,ai_response FROM userquestions WHERE snippet_id=$1;",
-        [snippetId]
-      ),
-    ]);
+  let response;
 
-  // Check if snippet exists, if not, throw error
-  if (!snippetResponse.rows[0].snippet_id) {
-    throw new apiError(500, "Something went wrong while fetching data");
-  }
+  try {
+    const snippetResponse = await pool.query(
+      "SELECT snippet_id,snippet_code,created_at, updated_at,snippet_title,language FROM snippets WHERE snippet_id=$1 AND user_id=$2;",
+      [snippetId, user_id]
+    );
+    const tasksResponse = await pool.query(
+      "SELECT task_id,task_description,is_completed,explanation FROM tasks WHERE snippet_id=$1;",
+      [snippetId]
+    );
+    const notesResponse = await pool.query(
+      "SELECT note_id,note_description  FROM notes WHERE snippet_id=$1;",
+      [snippetId]
+    );
+    const QuestionResponse = await pool.query(
+      "SELECT  userquestion ,ai_response FROM userquestions WHERE snippet_id=$1;",
+      [snippetId]
+    );
+    // const [snippetResponse, tasksResponse, notesResponse, QuestionResponse] = await Promise.all([
+    //   pool.query(
+    //     "SELECT snippet_id, snippet_code, created_at, updated_at, snippet_title, language FROM snippets WHERE snippet_id=$1 AND user_id=$2;",
+    //     [snippetId, user_id]
+    //   ),
+    //   pool.query(
+    //     "SELECT task_id, task_description, is_completed, explanation FROM tasks WHERE snippet_id=$1;",
+    //     [snippetId]
+    //   ),
+    //   pool.query(
+    //     "SELECT note_id, note_description FROM notes WHERE snippet_id=$1;",
+    //     [snippetId]
+    //   ),
+    //   pool.query(
+    //     "SELECT userquestion, ai_response FROM userquestions WHERE snippet_id=$1;",
+    //     [snippetId]
+    //   ),
+    // ]);
+   
+    // somehting is not workking in my db its not allocating enough pool to me to run promise
 
-  // Construct the final response
-  const response = {
-    snippet: snippetResponse?.rows[0],
-    tasks: tasksResponse?.rows,
-    notes: notesResponse?.rows,
-    userQuestion: QuestionResponse?.rows,
-  };
-  if (req.user.access_token) {
-    res
-      .status(200)
-      .json(new apiResponse(200, response, "Snippet fetched"))
-      .cookie("access_token", req.user.access_token, options);
+    // Check if snippet exists, if not, throw error
+    if (!snippetResponse.rows[0].snippet_id) {
+      throw new apiError(500, "Something went wrong while fetching data");
+    }
+    // Construct the final response
+    response = {
+      snippet: snippetResponse?.rows[0] || [],
+      tasks: tasksResponse?.rows || [],
+      notes: notesResponse?.rows || [],
+      userQuestion: QuestionResponse?.rows || [],
+    };
+  } catch (error) {
+    throw new apiError(
+      500,
+      "Something went wrong while fetching data: " + error.message
+    );
   }
   // Send the response
   res.status(200).json(new apiResponse(200, response, "Snippet fetched"));

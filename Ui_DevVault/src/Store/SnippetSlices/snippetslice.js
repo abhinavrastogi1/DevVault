@@ -15,10 +15,28 @@ const API_URL = import.meta.env.VITE_API_URL; // Ensure this is set correctly in
         }
     }
 )
+export const getSnippetById = createAsyncThunk(
+  "snippetSlice/getSnippetById",
+  async (snippetId) => {
+    try {
+      const response = await axios.get(`${API_URL}/snippet/getsnippetdata/`, {
+        withCredentials: true,
+        params: { snippetId: snippetId.trim() }
+      },);
+      return response.data.data;
+    } catch (error) {
+      console.error("Error fetching snippet by ID:", error);
+      throw error;
+    }
+  }
+);
 const snippetSlice = createSlice({
   name: "snippetSlice",
   initialState: {
     snippets: [],
+    snippetData: {
+      notes:[]
+    },
     activeSnippet: null,
     isLoading: false,
     error: null,
@@ -52,6 +70,18 @@ reducers: {
         state.snippets = action.payload;
       })
       .addCase(getAllSnippets.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message;
+      })
+      .addCase(getSnippetById.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })  
+      .addCase(getSnippetById.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.snippetData = action.payload;
+      })
+      .addCase(getSnippetById.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.error.message;
       });
