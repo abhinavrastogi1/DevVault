@@ -613,6 +613,19 @@ const saveSnippetController = asyncHandler(async (req, res,next) => {
   }
  next()
 });
+const deleteSnippetController=asyncHandler(async(req,res,next)=>{
+  const {snippetId}=req?.query
+  const {user_id}=req?.user
+  if(!snippetId ||user_id ){
+    throw new apiError(400,"all fields are required")
+  }
+  try {
+    await pool.query("DELETE from snippets where snippet_id=$1 and user_id=$2",[snippetId,user_id])
+  } catch (error) {
+    throw new apiError(500,"something went wrong while deleting snippet")
+  }
+  next();
+})
 
 export {
   snippetController,
@@ -620,4 +633,5 @@ export {
   getAllSnippetsController,
   deleteTaskController,
   saveSnippetController,
+  deleteSnippetController
 };

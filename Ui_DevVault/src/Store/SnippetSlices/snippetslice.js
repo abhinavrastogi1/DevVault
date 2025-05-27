@@ -50,7 +50,7 @@ export const createUpdateSnippet = createAsyncThunk(
     try {
       const response = await axios.delete(`${API_URL}/snippet/deletesnippet`, {
         withCredentials: true,
-        data: { snippetId }
+params:{ snippetId:snippetId },
       });
       return response.data.data;
     } catch (error) {
@@ -147,8 +147,8 @@ reducers: {
       .addCase(deleteSnippet.fulfilled, (state, action) => {
         state.isLoading = false;
         // Remove the deleted snippet from the snippets array
-        state.snippets = state.snippets.filter(snippet => snippet.snippet_id !== action.payload.snippet_id);
-      })
+        state.snippets = action.payload;
+        })
       .addCase(deleteSnippet.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.error.message;
