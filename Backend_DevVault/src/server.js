@@ -8,7 +8,7 @@ const server = async () => {
   try {
     await connect_DB();
     app.get("/", (req,res) => {
-      res.redirect(302,"https://clikn.in")
+      res.redirect(302,"https://devvault.clikn.in")
     });
     app.listen(port, "0.0.0.0", () => {
       console.log(`Server is running on port ${port}`);
